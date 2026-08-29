@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Netball Match Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #F3F8FD;
+    --panel: #FFFFFF;
+    --panel-line: #CBDFF3;
+    --court: #1B5FC4;
+    --break: #4FA6E8;
+    --end: #0B2A52;
+    --ink: #0B2A52;
+    --ink-dim: #7093B0;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; margin:0; overflow-y:auto; }
+
+  @media (orientation: landscape) and (max-height: 600px){
+    body{ padding: 0; }
+    .topbar, .rail, .rail-labels, .badge, .eyebrow, .behind, .panel, .footnote{
+      display: none !important;
+    }
+    .wrap{ height:100vh; justify-content:center; gap: 6px; }
+    .period-name{
+      font-size: clamp(14px, 3vh, 20px);
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .clock{
+      font-size: clamp(120px, 34vh, 320px);
+      margin: 0;
+    }
+  }
+
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Space Grotesk', sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding: 24px 16px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap{ width:100%; max-width: 480px; display:flex; flex-direction:column; align-items:center; gap: 20px; }
+
+  .rail{ display:flex; width:100%; gap:4px; }
+  .rail-seg{
+    flex:1; height:6px; border-radius:3px; background: var(--panel-line);
+    position:relative; overflow:hidden;
+  }
+  .rail-seg.done{ background: var(--ink-dim); }
+  .rail-seg.active{ background: var(--panel-line); }
+  .rail-seg.active .fill{
+    position:absolute; inset:0; background: var(--accent, var(--court)); transform-origin:left;
+  }
+  .rail-labels{ display:flex; width:100%; gap:4px; margin-top:-12px; }
+  .rail-labels span{
+    flex:1; text-align:center; font-family:'JetBrains Mono',monospace; font-size:10px;
+    letter-spacing:0.03em; color: var(--ink-dim);
+  }
+  .rail-labels span.current{ color: var(--ink); font-weight:700; }
+
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size: 13px; letter-spacing:0.14em;
+    text-transform:uppercase; color: var(--ink-dim);
+  }
+  .period-name{ font-size: clamp(20px, 5vw, 28px); font-weight:700; margin-top:2px; }
+
+  .clock{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800;
+    font-size: clamp(72px, 22vw, 140px);
+    line-height:1;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent, var(--court));
+    text-shadow: 0 0 40px color-mix(in srgb, var(--accent, var(--court)) 35%, transparent);
+    margin: 6px 0;
+  }
+  .clock.dim{ color: var(--ink-dim); text-shadow:none; }
+
+  .behind{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 15px;
+    color: var(--break);
+    min-height: 20px;
+    letter-spacing:0.03em;
+  }
+
+  .panel{
+    width:100%;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 14px;
+    padding: 20px;
+    display:flex;
+    flex-direction:column;
+    gap: 12px;
+    align-items:center;
+    box-shadow: 0 8px 24px rgba(11, 42, 82, 0.06);
+  }
+
+  button{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    border-radius: 10px;
+    border: none;
+    padding: 16px 20px;
+    width: 100%;
+    cursor:pointer;
+    transition: transform 0.08s ease, filter 0.15s ease;
+    color: #FFFFFF;
+  }
+  button:active{ transform: scale(0.98); }
+  button.primary{ background: var(--court); }
+  button.warn{ background: var(--break); }
+  button.ghost{
+    background: transparent;
+    border: 1px solid var(--panel-line);
+    color: var(--ink);
+  }
+  .row{ display:flex; gap:10px; width:100%; }
+  .row button{ width:auto; flex:1; }
+
+  .topbar{
+    width:100%; display:flex; align-items:center; justify-content:space-between;
+  }
+  .topbar-actions{ display:flex; gap:8px; }
+  .app-title{
+    font-family:'JetBrains Mono', monospace; font-size:13px; letter-spacing:0.14em;
+    text-transform:uppercase; color: var(--ink-dim);
+  }
+  .icon-btn{
+    width:auto; padding:8px 12px; background: var(--panel); color: var(--ink);
+    border:1px solid var(--panel-line); font-size:18px; line-height:1;
+    box-shadow: 0 4px 12px rgba(11, 42, 82, 0.06);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .view{ width:100%; display:flex; flex-direction:column; align-items:center; gap:20px; }
+
+  .settings-title{ font-size: clamp(18px, 4.5vw, 22px); font-weight:700; align-self:flex-start; }
+  .field-row{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .field-label{ font-size:15px; color: var(--ink); }
+  .field-sub{ font-family:'JetBrains Mono', monospace; font-size:11px; color: var(--ink-dim); }
+  .field-inputs{ display:flex; align-items:center; gap:4px; }
+  .field-inputs input{
+    width:52px; text-align:center; font-family:'JetBrains Mono', monospace; font-size:16px;
+    font-weight:700; padding:10px 4px; border-radius:8px; border:1px solid var(--panel-line);
+    background: var(--bg); color: var(--ink);
+  }
+  .field-inputs span{ color: var(--ink-dim); font-family:'JetBrains Mono', monospace; }
+  .divider{ width:100%; height:1px; background: var(--panel-line); }
+
+  .footnote{
+
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    text-align:center;
+    line-height:1.6;
+  }
+
+  .badge{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent, var(--court)) 18%, transparent);
+    color: var(--accent, var(--court));
+    border: 1px solid color-mix(in srgb, var(--accent, var(--court)) 40%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    button{ transition:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="topbar">
+      <span class="app-title">Netball Timer</span>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="muteToggle" aria-label="Mute"></button>
+        <button class="icon-btn" id="settingsToggle" aria-label="Settings">&#9776;</button>
+      </div>
+    </div>
+
+    <div id="mainView" class="view">
+      <div class="rail" id="rail"></div>
+      <div class="rail-labels" id="railLabels"></div>
+
+      <span class="badge" id="badge">Not started</span>
+      <div class="eyebrow" id="eyebrow">Netball Match Timer</div>
+      <div class="period-name" id="periodName">Ready</div>
+      <div class="clock" id="clock">15:00</div>
+      <div class="behind" id="behind"></div>
+
+      <div class="panel" id="controls"></div>
+
+      <div class="footnote" id="footnote"></div>
+    </div>
+
+    <div id="settingsView" class="view" style="display:none;">
+      <div class="panel" id="settingsPanel"></div>
+    </div>
+
+  </div>
+
+<script>
+const PERIODS = [
+  { key:'Q1', name:'Quarter 1',            duration: 15*60, accent:'--court' },
+  { key:'QT', name:'Quarter Time',         duration:  2*60, accent:'--break' },
+  { key:'Q2', name:'Quarter 2',            duration: 15*60, accent:'--court' },
+  { key:'HT', name:'Half Time',            duration:  3*60, accent:'--break' },
+  { key:'Q3', name:'Quarter 3',            duration: 15*60, accent:'--court' },
+  { key:'3QT',name:'Three Quarter Time',   duration:  2*60, accent:'--break' },
+  { key:'Q4', name:'Quarter 4',            duration: 15*60, accent:'--court' },
+];
+const STATE_KEY = 'netball-match-state';
+const SETTINGS_KEY = 'netball-match-settings';
+const ORIGINAL_DURATIONS = {}; // snapshot taken before any saved settings are applied
+PERIODS.forEach(p => ORIGINAL_DURATIONS[p.key] = p.duration);
+
+// window.storage only exists inside Claude's artifact viewer. When this file
+// is opened as a standalone HTML file in a normal browser, fall back to
+// localStorage so settings/state still persist there.
+const hasAppStorage = (typeof window.storage !== 'undefined') && window.storage !== null;
+
+async function storageGet(key){
+  if(hasAppStorage){
+    try{ const res = await window.storage.get(key, false); return res ? res.value : null; }
+    catch(e){ return null; }
+  }
+  try{ return localStorage.getItem(key); }
+  catch(e){ return null; } // e.g. file:// origin restrictions in some browsers
+}
+
+async function storageSet(key, value){
+  if(hasAppStorage){
+    try{ await window.storage.set(key, value, false); }
+    catch(e){ console.error('Storage set failed', e); }
+    return;
+  }
+  try{ localStorage.setItem(key, value); }
+  catch(e){ console.error('localStorage set failed', e); }
+}
+
+let state = null;
+let audioCtx = null;
+let startPeriodChoice = 0;
+let stopArmed = false;
+let showSettings = false;
+let volume = 0.85;
+let muted = false;
+let customTimeOpen = false;
+let customTimeValue = '';
+
+async function loadSettings(){
+  try{
+    const value = await storageGet(SETTINGS_KEY);
+    if(value){
+      const parsed = JSON.parse(value);
+      const durations = parsed.durations || parsed; // supports old flat-durations format
+      PERIODS.forEach(p => { if(durations[p.key] != null) p.duration = durations[p.key]; });
+      if(typeof parsed.volume === 'number') volume = parsed.volume;
+      if(typeof parsed.muted === 'boolean') muted = parsed.muted;
+    }
+  }catch(e){ /* no saved settings yet, defaults stand */ }
+}
+
+async function saveSettings(){
+  const durations = {};
+  PERIODS.forEach(p => durations[p.key] = p.duration);
+  await storageSet(SETTINGS_KEY, JSON.stringify({ durations, volume, muted }));
+}
+
+const ICON_SPEAKER = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor"/>
+  <path d="M16.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M19 6a9 9 0 0 1 0 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`;
+
+const ICON_SPEAKER_MUTED = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor"/>
+  <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>`;
+
+function updateMuteIcon(){
+  const btn = document.getElementById('muteToggle');
+  if(btn) btn.innerHTML = muted ? ICON_SPEAKER_MUTED : ICON_SPEAKER;
+}
+
+function defaultState(){
+  return {
+    started:false, complete:false,
+    periodIdx:0,           // -1 means pre-game countdown, not a real period
+    pendingStartPeriod:0,  // which PERIODS index to jump to once pre-game ends
+    pregameDuration:0,     // seconds, only used while periodIdx === -1
+    anchor:null,          // ms epoch: elapsed = now - anchor, while running
+    isPaused:false,
+    pauseStartedAt:null,  // ms epoch when pause began
+    beeped30:false,
+    beepedEnd:false,
+  };
+}
+
+async function loadState(){
+  try{
+    const value = await storageGet(STATE_KEY);
+    if(value) return JSON.parse(value);
+  }catch(e){ /* no saved state yet */ }
+  return defaultState();
+}
+
+async function saveState(){
+  await storageSet(STATE_KEY, JSON.stringify(state));
+}
+
+function tryEnterFullscreen(){
+  const el = document.documentElement;
+  if(document.fullscreenElement) return;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if(req) req.call(el).catch(() => {}); // best-effort; some browsers require a fresh user gesture
+}
+
+function tryExitFullscreen(){
+  if(!document.fullscreenElement) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if(exit) exit.call(document).catch(() => {});
+}
+
+function handleOrientationChange(){
+  if(window.matchMedia('(orientation: landscape)').matches){
+    tryEnterFullscreen();
+    if(showSettings){ showSettings = false; toggleView(); }
+  } else {
+    tryExitFullscreen();
+  }
+}
+
+function ensureAudio(){
+  if(window.matchMedia('(orientation: landscape)').matches) tryEnterFullscreen();
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function scheduleTone(freq, dur, startOffset, bypassMute){
+  if(!audioCtx) return;
+  if(muted && !bypassMute) return;
+  const start = audioCtx.currentTime + startOffset;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square'; // sharper harmonics — reads as a kitchen-timer beep, not a soft tone
+  osc.frequency.value = freq;
+  const peak = Math.max(0.0001, volume);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(peak, start + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(start);
+  osc.stop(start + dur + 0.05);
+}
+
+function playBeep(kind, bypassMute){
+  if(kind === 'long'){
+    const pulses = 4, gap = 0.22;
+    for(let i=0;i<pulses;i++) scheduleTone(1250, 0.16, i*gap, bypassMute);
+  } else {
+    scheduleTone(1250, 0.18, 0, bypassMute);
+  }
+}
+
+// Duration of whatever "slot" is currently active — the pre-game countdown
+// (periodIdx === -1) or a real match period.
+function currentDurationMs(){
+  return state.periodIdx === -1 ? state.pregameDuration*1000 : PERIODS[state.periodIdx].duration*1000;
+}
+
+function advanceToNextSlot(){
+  if(state.periodIdx === -1) state.periodIdx = state.pendingStartPeriod;
+  else state.periodIdx += 1;
+}
+
+// Advances periods / fires beeps based on how much real time has actually
+// passed. Runs the full backlog in one go, so it also catches up correctly
+// after the tab was closed across one or more period boundaries.
+function reconcileAndBeep(now){
+  let changed = false;
+  while(!state.complete){
+    const durMs = currentDurationMs();
+    const elapsed = now - state.anchor;
+
+    if(elapsed < durMs - 30000) break;
+
+    if(elapsed < durMs){
+      if(!state.beeped30){ playBeep('short'); state.beeped30 = true; changed = true; }
+      break;
+    }
+
+    if(!state.beepedEnd){ playBeep('long'); state.beepedEnd = true; changed = true; }
+
+    if(state.periodIdx === PERIODS.length - 1){
+      state.complete = true;
+      state.isPaused = true;
+      changed = true;
+      break;
+    }
+
+    state.anchor += durMs;
+    advanceToNextSlot();
+    state.beeped30 = false;
+    state.beepedEnd = false;
+    changed = true;
+  }
+  return changed;
+}
+
+function fmt(ms){
+  const s = Math.max(0, Math.round(ms/1000));
+  const m = Math.floor(s/60);
+  const r = s%60;
+  return `${m}:${String(r).padStart(2,'0')}`;
+}
+
+function fmtBehind(ms){
+  const s = Math.max(0, Math.round(ms/1000));
+  const m = Math.floor(s/60);
+  const r = s%60;
+  if(m === 0) return `${r}s behind`;
+  return `${m}m ${String(r).padStart(2,'0')}s behind`;
+}
+
+function renderRail(){
+  const rail = document.getElementById('rail');
+  const labels = document.getElementById('railLabels');
+  rail.innerHTML = '';
+  labels.innerHTML = '';
+  const activeIdx = state.started ? state.periodIdx : startPeriodChoice;
+  PERIODS.forEach((p, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'rail-seg';
+    if((i < activeIdx && state.started) || state.complete) seg.className += ' done';
+    if(i === activeIdx && !state.complete) seg.className += ' active';
+    if(i === activeIdx && !state.complete){
+      const fill = document.createElement('div');
+      fill.className = 'fill';
+      fill.style.setProperty('--accent', `var(${p.accent})`);
+      let pct = 0;
+      if(state.started){
+        const durMs = p.duration*1000;
+        const elapsed = state.isPaused
+          ? (state.pauseStartedAt - state.anchor)
+          : (Date.now() - state.anchor);
+        pct = Math.min(1, Math.max(0, elapsed/durMs));
+      }
+      fill.style.width = (pct*100) + '%';
+      seg.appendChild(fill);
+    }
+    rail.appendChild(seg);
+
+    const lbl = document.createElement('span');
+    lbl.textContent = p.key;
+    if(i === activeIdx && !state.complete) lbl.className = 'current';
+    labels.appendChild(lbl);
+  });
+}
+
+function renderControls(){
+  const el = document.getElementById('controls');
+  el.innerHTML = '';
+
+  if(!state.started){
+    const select = document.createElement('select');
+    select.id = 'startPeriodSelect';
+    select.style.cssText = 'width:100%;padding:14px;border-radius:10px;border:1px solid var(--panel-line);background:var(--bg);color:var(--ink);font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:700;';
+    PERIODS.forEach((p, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `Start at ${p.name}`;
+      select.appendChild(opt);
+    });
+    select.value = startPeriodChoice;
+    select.onchange = () => { startPeriodChoice = Number(select.value); };
+    el.appendChild(select);
+
+    const btn = document.createElement('button');
+    btn.className = 'primary';
+    btn.textContent = 'Start Match';
+    btn.onclick = () => {
+      ensureAudio();
+      customTimeOpen = false;
+      state.started = true;
+      state.periodIdx = startPeriodChoice;
+      state.anchor = Date.now();
+      state.isPaused = false;
+      state.pauseStartedAt = null;
+      state.beeped30 = false;
+      state.beepedEnd = false;
+      state.complete = false;
+      saveState();
+      renderAll();
+    };
+    el.appendChild(btn);
+
+    if(!customTimeOpen){
+      const customBtn = document.createElement('button');
+      customBtn.className = 'ghost';
+      customBtn.textContent = 'Start at Custom Time';
+      customBtn.onclick = () => {
+        customTimeOpen = true;
+        renderAll();
+      };
+      el.appendChild(customBtn);
+    } else {
+      const timeInput = document.createElement('input');
+      timeInput.type = 'time';
+      timeInput.value = customTimeValue;
+      timeInput.style.cssText = 'width:100%;padding:14px;border-radius:10px;border:1px solid var(--panel-line);background:var(--bg);color:var(--ink);font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:700;';
+      timeInput.oninput = () => { customTimeValue = timeInput.value; };
+      timeInput.onchange = () => { customTimeValue = timeInput.value; };
+      el.appendChild(timeInput);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const cancel = document.createElement('button');
+      cancel.className = 'ghost';
+      cancel.textContent = 'Cancel';
+      cancel.onclick = () => { customTimeOpen = false; renderAll(); };
+
+      const setBtn = document.createElement('button');
+      setBtn.className = 'primary';
+      setBtn.textContent = 'Set';
+      setBtn.onclick = () => {
+        if(!customTimeValue){ return; }
+        const [hh, mm] = customTimeValue.split(':').map(Number);
+        const target = new Date();
+        target.setSeconds(0, 0);
+        target.setHours(hh, mm);
+        if(target.getTime() <= Date.now()) target.setDate(target.getDate()+1); // assume next day if already passed
+        ensureAudio();
+        customTimeOpen = false;
+        state.started = true;
+        state.periodIdx = -1;
+        state.pendingStartPeriod = startPeriodChoice;
+        state.pregameDuration = Math.max(1, Math.round((target.getTime()-Date.now())/1000));
+        state.anchor = Date.now();
+        state.isPaused = false;
+        state.pauseStartedAt = null;
+        state.beeped30 = false;
+        state.beepedEnd = false;
+        state.complete = false;
+        saveState();
+        renderAll();
+      };
+
+      row.appendChild(cancel);
+      row.appendChild(setBtn);
+      el.appendChild(row);
+    }
+    return;
+  }
+
+  if(state.complete){
+    const btn = document.createElement('button');
+    btn.className = 'ghost';
+    btn.textContent = 'Reset for New Match';
+    btn.onclick = async () => {
+      state = defaultState();
+      customTimeOpen = false;
+      await saveState();
+      renderAll();
+    };
+    el.appendChild(btn);
+    return;
+  }
+
+  if(!state.isPaused){
+    const btn = document.createElement('button');
+    btn.className = 'warn';
+    btn.textContent = 'Pause';
+    btn.onclick = () => {
+      state.pauseStartedAt = Date.now();
+      state.isPaused = true;
+      saveState();
+      renderAll();
+    };
+    el.appendChild(btn);
+  } else {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const resume = document.createElement('button');
+    resume.className = 'primary';
+    resume.textContent = 'Resume';
+    resume.onclick = () => {
+      ensureAudio();
+      const now = Date.now();
+      state.anchor += (now - state.pauseStartedAt); // preserves remaining time
+      state.pauseStartedAt = null;
+      state.isPaused = false;
+      stopArmed = false;
+      saveState();
+      renderAll();
+    };
+
+    const catchup = document.createElement('button');
+    catchup.className = 'ghost';
+    catchup.textContent = 'Catch Up to Now';
+    catchup.onclick = () => {
+      ensureAudio();
+      // anchor is left untouched, so the stoppage time gets eaten into
+      // the remaining clock instead of being preserved.
+      state.pauseStartedAt = null;
+      state.isPaused = false;
+      stopArmed = false;
+      const changed = reconcileAndBeep(Date.now());
+      saveState();
+      renderAll();
+    };
+
+    row.appendChild(resume);
+    row.appendChild(catchup);
+    el.appendChild(row);
+
+    const stop = document.createElement('button');
+    stop.className = 'ghost';
+    stop.textContent = stopArmed ? 'Tap again to confirm' : 'Stop & Reset';
+    stop.style.borderColor = stopArmed ? 'var(--end)' : '';
+    stop.style.color = stopArmed ? 'var(--end)' : '';
+    stop.onclick = async () => {
+      if(!stopArmed){
+        stopArmed = true;
+        renderAll();
+        return;
+      }
+      stopArmed = false;
+      state = defaultState();
+      customTimeOpen = false;
+      await saveState();
+      renderAll();
+    };
+    el.appendChild(stop);
+  }
+}
+
+function renderSettings(){
+  const el = document.getElementById('settingsPanel');
+  el.innerHTML = '';
+
+  const title = document.createElement('div');
+  title.className = 'settings-title';
+  title.textContent = 'Interval Settings';
+  el.appendChild(title);
+
+  // pending edits, keyed by period key, in seconds — applied only on Save
+  const pending = {};
+  PERIODS.forEach(p => pending[p.key] = p.duration);
+
+  PERIODS.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+
+    const labelWrap = document.createElement('div');
+    const label = document.createElement('div');
+    label.className = 'field-label';
+    label.textContent = p.name;
+    const sub = document.createElement('div');
+    sub.className = 'field-sub';
+    sub.textContent = p.key;
+    labelWrap.appendChild(label);
+    labelWrap.appendChild(sub);
+
+    const inputs = document.createElement('div');
+    inputs.className = 'field-inputs';
+    const minInput = document.createElement('input');
+    minInput.type = 'number';
+    minInput.min = '0';
+    minInput.value = Math.floor(pending[p.key]/60);
+    const sep = document.createElement('span');
+    sep.textContent = ':';
+    const secInput = document.createElement('input');
+    secInput.type = 'number';
+    secInput.min = '0';
+    secInput.max = '59';
+    secInput.value = String(pending[p.key]%60).padStart(2,'0');
+
+    function update(){
+      const mins = Math.max(0, parseInt(minInput.value,10) || 0);
+      const secs = Math.max(0, Math.min(59, parseInt(secInput.value,10) || 0));
+      pending[p.key] = mins*60 + secs;
+    }
+    minInput.oninput = update;
+    secInput.oninput = update;
+
+    inputs.appendChild(minInput);
+    inputs.appendChild(sep);
+    inputs.appendChild(secInput);
+
+    row.appendChild(labelWrap);
+    row.appendChild(inputs);
+    el.appendChild(row);
+  });
+
+  const divider1 = document.createElement('div');
+  divider1.className = 'divider';
+  el.appendChild(divider1);
+
+  const volRow = document.createElement('div');
+  volRow.className = 'field-row';
+  const volLabel = document.createElement('div');
+  volLabel.className = 'field-label';
+  volLabel.textContent = 'Beep volume';
+  const volSlider = document.createElement('input');
+  volSlider.type = 'range';
+  volSlider.min = '0';
+  volSlider.max = '100';
+  volSlider.value = String(Math.round(volume*100));
+  volSlider.style.flex = '1';
+  volSlider.oninput = () => {
+    volume = Number(volSlider.value)/100;
+  };
+  volSlider.onchange = () => {
+    saveSettings();
+  };
+  volRow.appendChild(volLabel);
+  volRow.appendChild(volSlider);
+  el.appendChild(volRow);
+
+  const beepRow = document.createElement('div');
+  beepRow.className = 'row';
+  const testShort = document.createElement('button');
+  testShort.className = 'ghost';
+  testShort.textContent = 'Test 30s Beep';
+  testShort.onclick = () => { ensureAudio(); playBeep('short', true); };
+  const testLong = document.createElement('button');
+  testLong.className = 'ghost';
+  testLong.textContent = 'Test End Beep';
+  testLong.onclick = () => { ensureAudio(); playBeep('long', true); };
+  beepRow.appendChild(testShort);
+  beepRow.appendChild(testLong);
+  el.appendChild(beepRow);
+
+  const divider2 = document.createElement('div');
+  divider2.className = 'divider';
+  el.appendChild(divider2);
+
+  const saveRow = document.createElement('div');
+  saveRow.className = 'row';
+
+  const reset = document.createElement('button');
+  reset.className = 'ghost';
+  reset.textContent = 'Reset Defaults';
+  reset.onclick = async () => {
+    PERIODS.forEach(p => p.duration = ORIGINAL_DURATIONS[p.key]);
+    await saveSettings();
+    renderSettings();
+    renderAll();
+  };
+
+  const save = document.createElement('button');
+  save.className = 'primary';
+  save.textContent = 'Save';
+  save.onclick = async () => {
+    PERIODS.forEach(p => { p.duration = pending[p.key]; });
+    await saveSettings();
+    showSettings = false;
+    toggleView();
+    renderAll();
+  };
+
+  saveRow.appendChild(reset);
+  saveRow.appendChild(save);
+  el.appendChild(saveRow);
+
+  const done = document.createElement('button');
+  done.className = 'ghost';
+  done.textContent = 'Back (discard changes)';
+  done.onclick = () => {
+    showSettings = false;
+    toggleView();
+    renderAll();
+  };
+  el.appendChild(done);
+}
+
+function toggleView(){
+  document.getElementById('mainView').style.display = showSettings ? 'none' : 'flex';
+  document.getElementById('settingsView').style.display = showSettings ? 'flex' : 'none';
+  if(showSettings) renderSettings();
+}
+function renderAll(){
+  const now = Date.now();
+  const badge = document.getElementById('badge');
+  const periodName = document.getElementById('periodName');
+  const clock = document.getElementById('clock');
+  const behind = document.getElementById('behind');
+  const eyebrow = document.getElementById('eyebrow');
+
+  if(!state.started){
+    const startPeriod = PERIODS[startPeriodChoice];
+    badge.textContent = 'Not started';
+    periodName.textContent = `Ready — ${startPeriod.name}`;
+    clock.textContent = fmt(startPeriod.duration*1000);
+    clock.style.removeProperty('--accent');
+    clock.classList.add('dim');
+    behind.textContent = '';
+    eyebrow.textContent = 'Netball Match Timer';
+    renderRail();
+    renderControls();
+    return;
+  }
+
+  if(state.complete){
+    badge.textContent = 'Full time';
+    periodName.textContent = 'Match Complete';
+    clock.textContent = '0:00';
+    clock.style.setProperty('--accent', 'var(--end)');
+    clock.classList.remove('dim');
+    behind.textContent = '';
+    eyebrow.textContent = 'Netball Match Timer';
+    renderRail();
+    renderControls();
+    return;
+  }
+
+  const isPregame = state.periodIdx === -1;
+  const durMs = currentDurationMs();
+  const periodLabel = isPregame ? 'Starting In' : PERIODS[state.periodIdx].name;
+  const accent = isPregame ? '--break' : PERIODS[state.periodIdx].accent;
+  clock.classList.remove('dim');
+  clock.style.setProperty('--accent', `var(${accent})`);
+
+  let elapsed;
+  if(state.isPaused){
+    elapsed = state.pauseStartedAt - state.anchor;
+    badge.textContent = 'Paused';
+    behind.textContent = fmtBehind(now - state.pauseStartedAt);
+  } else {
+    elapsed = now - state.anchor;
+    badge.textContent = isPregame ? 'Starting soon' : (accent === '--break' ? 'Break' : 'In play');
+    behind.textContent = '';
+  }
+
+  eyebrow.textContent = isPregame ? 'Pre-Game Countdown' : `Period ${state.periodIdx+1} of ${PERIODS.length}`;
+  periodName.textContent = periodLabel;
+  clock.textContent = fmt(durMs - elapsed);
+
+  renderRail();
+  renderControls();
+  const footnote = document.getElementById('footnote');
+  const summary = PERIODS.map(p => `${p.key} ${fmt(p.duration*1000)}`).join(' &nbsp;|&nbsp; ');
+  footnote.innerHTML = `${summary}<br>Runs off the real clock &mdash; safe to close this tab, it keeps time.`;
+}
+
+async function tick(){
+  if(!state.started) return; // nothing time-based to update on the ready screen
+  if(!state.complete && !state.isPaused){
+    const changed = reconcileAndBeep(Date.now());
+    if(changed) await saveState();
+  }
+  renderAll();
+}
+
+(async function init(){
+  state = await loadState();
+  await loadSettings();
+  window.addEventListener('beforeunload', (e) => {
+    if(state && state.started && !state.complete){
+      e.preventDefault();
+      e.returnValue = ''; // browsers show their own generic message, text here is ignored
+    }
+  });
+  document.getElementById('settingsToggle').onclick = () => {
+    showSettings = !showSettings;
+    toggleView();
+  };
+  document.getElementById('muteToggle').onclick = () => {
+    ensureAudio();
+    muted = !muted;
+    updateMuteIcon();
+    saveSettings();
+  };
+  updateMuteIcon();
+  window.matchMedia('(orientation: landscape)').addEventListener('change', handleOrientationChange);
+  handleOrientationChange();
+  renderAll();
+  setInterval(tick, 500);
+})();
+</script>
+</body>
+</html>
