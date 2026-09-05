@@ -508,9 +508,15 @@ function fmtBehind(ms){
   return `${m}m ${String(r).padStart(2,'0')}s behind`;
 }
 
+// Rounds up to the next half-hour mark — games start on the hour or
+// half-hour, so this is a closer starting guess than the exact time.
 function nowTimeString(){
   const d = new Date();
-  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  let hours = d.getHours();
+  let mins = d.getMinutes();
+  if(mins > 30){ mins = 0; hours = (hours + 1) % 24; }
+  else if(mins > 0){ mins = 30; }
+  return String(hours).padStart(2,'0') + ':' + String(mins).padStart(2,'0');
 }
 
 function renderRail(){
@@ -598,7 +604,7 @@ function renderControls(){
     } else {
       const timeLabel = document.createElement('div');
       timeLabel.className = 'field-label';
-      timeLabel.textContent = 'Kickoff time — tap to change:';
+      timeLabel.textContent = 'Enter game start time:';
       el.appendChild(timeLabel);
 
       const timeInput = document.createElement('input');
