@@ -508,6 +508,11 @@ function fmtBehind(ms){
   return `${m}m ${String(r).padStart(2,'0')}s behind`;
 }
 
+function nowTimeString(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
 function renderRail(){
   const rail = document.getElementById('rail');
   const labels = document.getElementById('railLabels');
@@ -585,14 +590,21 @@ function renderControls(){
       customBtn.className = 'ghost';
       customBtn.textContent = 'Start at Custom Time';
       customBtn.onclick = () => {
+        if(!customTimeValue) customTimeValue = nowTimeString(); // never open blank — always a real, tappable value
         customTimeOpen = true;
         renderAll();
       };
       el.appendChild(customBtn);
     } else {
+      const timeLabel = document.createElement('div');
+      timeLabel.className = 'field-label';
+      timeLabel.textContent = 'Kickoff time — tap to change:';
+      el.appendChild(timeLabel);
+
       const timeInput = document.createElement('input');
       timeInput.type = 'time';
       timeInput.value = customTimeValue;
+      timeInput.placeholder = 'Enter time';
       timeInput.style.cssText = 'width:100%;padding:14px;border-radius:10px;border:1px solid var(--panel-line);background:var(--bg);color:var(--ink);font-family:\'JetBrains Mono\',monospace;font-size:16px;font-weight:700;';
       timeInput.oninput = () => { customTimeValue = timeInput.value; };
       timeInput.onchange = () => { customTimeValue = timeInput.value; };
