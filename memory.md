@@ -142,11 +142,12 @@ covers every browser.
 - **"Reset Defaults" was a no-op** for a while: it rebuilt "defaults"
   by reading the *current* (possibly already-customized) `PERIODS`
   durations instead of a snapshot taken before any settings were ever
-  loaded. Fixed by capturing `ORIGINAL_DURATIONS` immediately after
-  `PERIODS` is declared, before `loadSettings()` runs. Any future
-  "reset to default" feature must snapshot state before user
-  customization can touch it, not derive "default" from current
-  state.
+  loaded. Fixed by capturing a snapshot (now `DEFAULT_GROUP_DURATIONS`,
+  see "Interval settings are grouped, not per-period" below —
+  originally `ORIGINAL_DURATIONS`) immediately after `PERIODS` is
+  declared, before `loadSettings()` runs. Any future "reset to
+  default" feature must snapshot state before user customization can
+  touch it, not derive "default" from current state.
 - **The settings panel could go blank in landscape**: landscape CSS
   hides everything with class `.panel` to declutter the courtside
   view, but the settings container also used that class. Fixed by
@@ -165,6 +166,30 @@ covers every browser.
   dropped styling. Worth re-reading the diff area around any
   multi-line `str_replace`, not just trusting that "syntax OK" means
   "nothing was lost."
+
+## Interval settings are grouped, not per-period
+
+Settings originally exposed all 7 `PERIODS` entries as independently
+editable durations. The user only ever wants to set three numbers —
+quarter length, quarter/three-quarter-time break length, half-time
+break length — and have that apply to every period of that type, so
+the settings UI and storage were changed to a `groupDurations` model
+(`quarter` / `quarterBreak` / `halfBreak`) instead.
+
+`periodGroup(key)` maps a `PERIODS` key to its group, and
+`applyGroupDurations()` pushes `groupDurations` down onto each
+period's individual `.duration`. This was a deliberate choice to keep
+the group concept confined to settings load/save/render — every other
+piece of code (clock, rail, beep timing, `reconcileAndBeep`) still
+just reads `PERIODS[i].duration` and has no idea groups exist.
+
+`loadSettings()` migrates old saved settings (either the older
+per-period `durations` object, or the original flat format) by
+deriving the three group values from whichever of `Q1`/`QT`/`HT` are
+present. `DEFAULT_GROUP_DURATIONS` is derived from the `PERIODS`
+array's own initial values (15:00 / 2:00 / 3:00) rather than
+hardcoded a second time, replacing the old `ORIGINAL_DURATIONS`
+snapshot used by "Reset Defaults".
 
 ## Known deliberate non-features
 

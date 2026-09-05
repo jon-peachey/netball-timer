@@ -27,7 +27,9 @@ Pages redeploys automatically.
 ## Features
 
 - Q1–Q4 (15:00), Quarter Time / Three Quarter Time (2:00), Half Time
-  (3:00) — all editable in Settings.
+  (3:00) — editable in Settings as three grouped fields (Quarter
+  Duration, Quarter Time Break, Half Time Break), so changing one
+  applies to every matching period.
 - Runs off the real clock, not a `setInterval` counter — safe to close
   the tab or lock the phone; it recalculates from elapsed wall-clock
   time when reopened, including catching up through missed period
@@ -38,7 +40,7 @@ Pages redeploys automatically.
   kickoff, or a time already passed (running late) to jump straight
   into the correct current period, backdated, with missed-period beeps
   suppressed for that catch-up.
-- Settings page: per-period duration editing, beep volume slider, beep
+- Settings page: grouped duration editing, beep volume slider, beep
   test buttons (bypass mute), reset to defaults.
 - Mute toggle, fullscreen toggle, 30-second warning beep, and a
   4-pulse end-of-period beep, kitchen-timer style.
