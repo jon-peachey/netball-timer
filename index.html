@@ -182,6 +182,7 @@
     text-align:center;
     line-height:1.6;
   }
+  .footnote a{ color: var(--ink-dim); text-decoration: underline; }
 
   .badge{
     font-family:'JetBrains Mono', monospace;
@@ -247,6 +248,7 @@ const PERIODS = [
 ];
 const STATE_KEY = 'netball-match-state';
 const SETTINGS_KEY = 'netball-match-settings';
+const FEEDBACK_URL = 'https://github.com/jon-peachey/netball-timer/issues/new';
 const ORIGINAL_DURATIONS = {}; // snapshot taken before any saved settings are applied
 PERIODS.forEach(p => ORIGINAL_DURATIONS[p.key] = p.duration);
 
@@ -857,6 +859,9 @@ function renderAll(){
   const clock = document.getElementById('clock');
   const behind = document.getElementById('behind');
   const eyebrow = document.getElementById('eyebrow');
+  const footnote = document.getElementById('footnote');
+  const summary = PERIODS.map(p => `${p.key} ${fmt(p.duration*1000)}`).join(' &nbsp;|&nbsp; ');
+  footnote.innerHTML = `${summary}<br>Runs off the real clock &mdash; safe to close this tab, it keeps time.<br><a href="${FEEDBACK_URL}" target="_blank" rel="noopener">Send feedback</a>`;
 
   if(!state.started){
     const startPeriod = PERIODS[startPeriodChoice];
@@ -909,9 +914,6 @@ function renderAll(){
 
   renderRail();
   renderControls();
-  const footnote = document.getElementById('footnote');
-  const summary = PERIODS.map(p => `${p.key} ${fmt(p.duration*1000)}`).join(' &nbsp;|&nbsp; ');
-  footnote.innerHTML = `${summary}<br>Runs off the real clock &mdash; safe to close this tab, it keeps time.`;
 }
 
 async function tick(){
