@@ -249,8 +249,27 @@ const PERIODS = [
 const STATE_KEY = 'netball-match-state';
 const SETTINGS_KEY = 'netball-match-settings';
 const FEEDBACK_URL = 'https://github.com/jon-peachey/netball-timer/issues/new';
-const ORIGINAL_DURATIONS = {}; // snapshot taken before any saved settings are applied
-PERIODS.forEach(p => ORIGINAL_DURATIONS[p.key] = p.duration);
+
+// Durations are edited as three groups, not per-period — Q1-Q4 always match
+// each other, as do QT/3QT. periodGroup() maps a period key to its group.
+function periodGroup(key){
+  if(key === 'HT') return 'halfBreak';
+  if(key === 'QT' || key === '3QT') return 'quarterBreak';
+  return 'quarter';
+}
+const DEFAULT_GROUP_DURATIONS = {
+  quarter: PERIODS.find(p => p.key === 'Q1').duration,
+  quarterBreak: PERIODS.find(p => p.key === 'QT').duration,
+  halfBreak: PERIODS.find(p => p.key === 'HT').duration,
+};
+let groupDurations = { ...DEFAULT_GROUP_DURATIONS };
+
+// Pushes groupDurations down onto each PERIODS entry's individual .duration
+// — everything else in the app (clock, rail, beep timing) still just reads
+// PERIODS[i].duration and doesn't need to know groups exist.
+function applyGroupDurations(){
+  PERIODS.forEach(p => { p.duration = groupDurations[periodGroup(p.key)]; });
+}
 
 // window.storage only exists inside Claude's artifact viewer. When this file
 // is opened as a standalone HTML file in a normal browser, fall back to
@@ -292,18 +311,25 @@ async function loadSettings(){
     const value = await storageGet(SETTINGS_KEY);
     if(value){
       const parsed = JSON.parse(value);
-      const durations = parsed.durations || parsed; // supports old flat-durations format
-      PERIODS.forEach(p => { if(durations[p.key] != null) p.duration = durations[p.key]; });
+      if(parsed.groupDurations){
+        Object.assign(groupDurations, parsed.groupDurations);
+      } else {
+        // Older saved settings stored one duration per period — derive the
+        // three group values from whichever period keys are present.
+        const durations = parsed.durations || parsed; // even older flat-durations format
+        if(durations.Q1 != null) groupDurations.quarter = durations.Q1;
+        if(durations.QT != null) groupDurations.quarterBreak = durations.QT;
+        if(durations.HT != null) groupDurations.halfBreak = durations.HT;
+      }
       if(typeof parsed.volume === 'number') volume = parsed.volume;
       if(typeof parsed.muted === 'boolean') muted = parsed.muted;
     }
   }catch(e){ /* no saved settings yet, defaults stand */ }
+  applyGroupDurations();
 }
 
 async function saveSettings(){
-  const durations = {};
-  PERIODS.forEach(p => durations[p.key] = p.duration);
-  await storageSet(SETTINGS_KEY, JSON.stringify({ durations, volume, muted }));
+  await storageSet(SETTINGS_KEY, JSON.stringify({ groupDurations, volume, muted }));
 }
 
 const ICON_SPEAKER = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -716,21 +742,26 @@ function renderSettings(){
   title.textContent = 'Interval Settings';
   el.appendChild(title);
 
-  // pending edits, keyed by period key, in seconds — applied only on Save
-  const pending = {};
-  PERIODS.forEach(p => pending[p.key] = p.duration);
+  // pending edits, keyed by group, in seconds — applied only on Save
+  const pending = { ...groupDurations };
 
-  PERIODS.forEach(p => {
+  const GROUP_FIELDS = [
+    { group:'quarter',      label:'Quarter Duration',   sub:'Q1 – Q4' },
+    { group:'quarterBreak', label:'Quarter Time Break', sub:'QT / 3QT' },
+    { group:'halfBreak',    label:'Half Time Break',    sub:'HT' },
+  ];
+
+  GROUP_FIELDS.forEach(({group, label: labelText, sub: subText}) => {
     const row = document.createElement('div');
     row.className = 'field-row';
 
     const labelWrap = document.createElement('div');
     const label = document.createElement('div');
     label.className = 'field-label';
-    label.textContent = p.name;
+    label.textContent = labelText;
     const sub = document.createElement('div');
     sub.className = 'field-sub';
-    sub.textContent = p.key;
+    sub.textContent = subText;
     labelWrap.appendChild(label);
     labelWrap.appendChild(sub);
 
@@ -739,19 +770,19 @@ function renderSettings(){
     const minInput = document.createElement('input');
     minInput.type = 'number';
     minInput.min = '0';
-    minInput.value = Math.floor(pending[p.key]/60);
+    minInput.value = Math.floor(pending[group]/60);
     const sep = document.createElement('span');
     sep.textContent = ':';
     const secInput = document.createElement('input');
     secInput.type = 'number';
     secInput.min = '0';
     secInput.max = '59';
-    secInput.value = String(pending[p.key]%60).padStart(2,'0');
+    secInput.value = String(pending[group]%60).padStart(2,'0');
 
     function update(){
       const mins = Math.max(0, parseInt(minInput.value,10) || 0);
       const secs = Math.max(0, Math.min(59, parseInt(secInput.value,10) || 0));
-      pending[p.key] = mins*60 + secs;
+      pending[group] = mins*60 + secs;
     }
     minInput.oninput = update;
     secInput.oninput = update;
@@ -815,7 +846,8 @@ function renderSettings(){
   reset.className = 'ghost';
   reset.textContent = 'Reset Defaults';
   reset.onclick = async () => {
-    PERIODS.forEach(p => p.duration = ORIGINAL_DURATIONS[p.key]);
+    Object.assign(groupDurations, DEFAULT_GROUP_DURATIONS);
+    applyGroupDurations();
     await saveSettings();
     renderSettings();
     renderAll();
@@ -825,7 +857,8 @@ function renderSettings(){
   save.className = 'primary';
   save.textContent = 'Save';
   save.onclick = async () => {
-    PERIODS.forEach(p => { p.duration = pending[p.key]; });
+    Object.assign(groupDurations, pending);
+    applyGroupDurations();
     await saveSettings();
     showSettings = false;
     toggleView();
