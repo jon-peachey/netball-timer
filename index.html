@@ -407,12 +407,14 @@ function updateFullscreenIcon(){
   if(closeBtn) closeBtn.style.display = isFullscreen() ? 'flex' : 'none';
 }
 
-// Keeps the screen awake only while the clock is actively counting down
-// (started, not paused, not complete — pre-game countdown included). The
-// browser silently drops the lock whenever the tab is hidden, so it must be
-// re-requested on visibilitychange, not just once when play starts.
+// Keeps the screen awake while the match is in progress (started, not
+// complete — pre-game countdown included): always while actually running,
+// and while paused only if the tab still has focus — walk away mid-pause
+// and the device is free to sleep. The browser silently drops the lock
+// whenever the tab is hidden, so it must be re-requested on
+// visibilitychange/focus, not just once when play starts.
 async function updateWakeLock(){
-  const shouldHold = state.started && !state.complete && !state.isPaused;
+  const shouldHold = state.started && !state.complete && (!state.isPaused || document.hasFocus());
   if(shouldHold){
     if(!wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible'){
       try{
@@ -1034,6 +1036,8 @@ async function tick(){
   document.addEventListener('visibilitychange', () => {
     if(document.visibilityState === 'visible') updateWakeLock();
   });
+  window.addEventListener('focus', updateWakeLock);
+  window.addEventListener('blur', updateWakeLock);
   renderAll();
   setInterval(tick, 500);
 })();
